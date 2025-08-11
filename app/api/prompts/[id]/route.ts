@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 import { getJWTSecret } from '@/lib/env-validation'
 
 // Update prompt
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { name, content, isDefault } = await request.json()
     const { id } = await params
@@ -49,7 +49,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 // Delete prompt
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const promptId = parseInt(id)

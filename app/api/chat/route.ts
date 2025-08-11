@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
           const mcpFunctions = mcpTools.map(tool => ({
             name: `mcp_${tool.name}`,
             description: `[MCP Tool] ${tool.description}`,
-            parameters: tool.inputSchema
+            parameters: tool.inputSchema as any
           }))
           
-          allTools.push(...mcpFunctions)
+          allTools.push(...mcpFunctions as any)
           // Using built-in and MCP tools
         } catch (mcpError) {
           console.warn('Failed to load MCP tools:', mcpError)
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
         // Check if the AI wants to call a function
         if (initialMessage.tool_calls && initialMessage.tool_calls.length > 0) {
-          const toolCall = initialMessage.tool_calls[0]
+          const toolCall = initialMessage.tool_calls[0] as any
           // Execute the function
           const functionName = toolCall.function.name
           const functionArgs = JSON.parse(toolCall.function.arguments || '{}')

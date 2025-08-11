@@ -30,7 +30,7 @@ export default function PromptSelector({ selectedPrompt, onSelectPrompt, onManag
         setPrompts(sessionPrompts)
       } else {
         const defaultSessionPrompt: Prompt = {
-          id: 'session-default',
+          id: 0,
           user_id: 0,
           name: t('prompts.defaultPrompt'),
           content: 'You are a helpful AI assistant. Be concise and accurate in your responses.',

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { getBergetAIConfig } from '@/lib/env-validation'
 
+const bergetConfig = getBergetAIConfig()
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: bergetConfig.apiKey,
+  baseURL: bergetConfig.baseUrl
 })
 
 export async function POST(request: NextRequest) {

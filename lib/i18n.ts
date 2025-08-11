@@ -47,7 +47,6 @@ i18n
       order: ['localStorage'],
       lookupLocalStorage: 'i18nextLng',
       caches: ['localStorage'],
-      checkWhitelist: true,
     },
     
     // Only allow these languages to prevent browser language detection from interfering

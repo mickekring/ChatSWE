@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 import { getJWTSecret } from '@/lib/env-validation'
 
 // Get conversation messages
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const conversationId = parseInt(id)
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // Update conversation
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { title, isArchived } = await request.json()
     const { id } = await params
@@ -74,7 +74,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 // Delete conversation
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const conversationId = parseInt(id)

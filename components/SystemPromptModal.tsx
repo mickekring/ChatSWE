@@ -62,7 +62,7 @@ export default function SystemPromptModal({ isOpen, onClose, sessionPrompts, onU
     if (!isLoggedIn) {
       // For anonymous users, create session prompt
       const newPrompt: Prompt = {
-        id: `session-${Date.now()}`,
+        id: Date.now(),
         user_id: 0,
         name: formData.name.trim(),
         content: formData.content.trim(),

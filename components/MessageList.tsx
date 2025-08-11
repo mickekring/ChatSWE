@@ -124,7 +124,7 @@ export default function MessageList({ messages, isLoading, currentFunctionCall }
                       <div className="flex items-center gap-2">
                         <Zap size={16} className="text-emerald-600 dark:text-emerald-400" />
                         <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                          Used {message.toolCalls?.length} tool{message.toolCalls?.length > 1 ? 's' : ''}
+                          Used {message.toolCalls?.length || 0} tool{(message.toolCalls?.length || 0) > 1 ? 's' : ''}
                         </span>
                       </div>
                     ) : null}

@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // NocoDB uses 'Id' (capital I) instead of 'id'
-    const userId = user.Id || user.id
+    // Get user ID
+    const userId = (user as any).Id || user.id
 
     // Create JWT token
     const token = jwt.sign(
