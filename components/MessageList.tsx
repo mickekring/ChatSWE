@@ -174,6 +174,14 @@ export default function MessageList({ messages, isLoading, currentFunctionCall }
           <div className="text-center py-12">
             <div className="text-gray-500 dark:text-gray-400">
               <Bot size={48} className="mx-auto mb-4 opacity-50" />
+              <h1 className="text-4xl font-bold mb-4 flex items-center justify-center gap-3">
+                ChatSWE
+                <img 
+                  src="/favicon.png" 
+                  alt="ChatSWE Logo" 
+                  className="w-8 h-8"
+                />
+              </h1>
               <h2 className="text-xl font-semibold mb-2">{t('chat.welcomeTitle')}</h2>
               <p className="text-sm">{t('chat.welcomeSubtitle')}</p>
             </div>
