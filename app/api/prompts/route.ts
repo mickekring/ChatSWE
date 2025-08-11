@@ -17,6 +17,12 @@ export async function GET(request: NextRequest) {
     
     const prompts = await getUserPrompts(decoded.userId)
     
+    console.log('API: Returning prompts:', prompts.map(p => ({
+      id: p.Id || p.id,
+      name: p.name,
+      contentStart: p.content.substring(0, 50) + '...'
+    })))
+    
     return NextResponse.json({
       success: true,
       prompts

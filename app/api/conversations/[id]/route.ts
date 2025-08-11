@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateConversation, deleteConversation, getConversationMessages } from '@/lib/chat-history'
+import { updateConversation, deleteConversation, getConversationMessages, getConversation } from '@/lib/chat-history'
 import jwt from 'jsonwebtoken'
 import { getJWTSecret } from '@/lib/env-validation'
 
@@ -19,10 +19,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     jwt.verify(token, jwtSecret) as any
     
     const messages = await getConversationMessages(conversationId)
+    const conversation = await getConversation(conversationId)
+    
+    console.log('API: Returning conversation data:', {
+      conversationId,
+      model_used: conversation?.model_used,
+      prompt_used: conversation?.prompt_used ? conversation.prompt_used.substring(0, 100) + '...' : 'Missing',
+      messageCount: messages.length
+    })
     
     return NextResponse.json({
       success: true,
-      messages
+      messages,
+      conversation
     })
     
   } catch (error) {

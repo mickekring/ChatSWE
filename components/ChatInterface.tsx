@@ -415,6 +415,9 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
   useEffect(() => {
     if (messages.length === 0 && !isLoading) {
       onNewChat()
+      // Reset to default model and clear selections when starting new chat
+      setSelectedModel(models[1]) // Default to Llama 3.3 70B
+      setSelectedPrompt(null)
       // Clear files when starting new chat
       setUploadedFiles([])
       setDocumentChunks([])
@@ -473,6 +476,126 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
     
     checkMCPTools()
   }, [selectedModel, mcpEnabled, isLoggedIn])
+
+  // Restore conversation context (model and system prompt) when loading a conversation
+  useEffect(() => {
+    const restoreConversationContext = async () => {
+      if (!currentConversation) {
+        console.log('No current conversation to restore')
+        return
+      }
+
+      const conversationId = currentConversation.Id || currentConversation.id
+      console.log('Restoring conversation context:', {
+        id: conversationId,
+        model_used: currentConversation.model_used,
+        prompt_used: currentConversation.prompt_used ? 'Present' : 'Missing'
+      })
+
+      // Restore model selection
+      if (currentConversation.model_used) {
+        // Try to find by ID first, then by name (for backward compatibility)
+        let savedModel = models.find(m => m.id === currentConversation.model_used)
+        if (!savedModel) {
+          savedModel = models.find(m => m.name === currentConversation.model_used)
+        }
+        
+        console.log('Model restoration:', {
+          model_used: currentConversation.model_used,
+          savedModel: savedModel ? savedModel.name : 'Not found',
+          searchedByName: !models.find(m => m.id === currentConversation.model_used),
+          availableModelIds: models.map(m => m.id),
+          availableModelNames: models.map(m => m.name)
+        })
+        if (savedModel) {
+          console.log('Setting model to:', savedModel.name)
+          setSelectedModel(savedModel)
+        } else {
+          console.log('Model not found:', currentConversation.model_used)
+        }
+      } else {
+        console.log('No model_used found in conversation')
+      }
+
+      // Restore system prompt selection (only if we have a prompt to restore)
+      if (currentConversation.prompt_used && isLoggedIn) {
+        try {
+          const token = localStorage.getItem('authToken')
+          if (token) {
+            console.log('Fetching prompts to restore system prompt...')
+            const response = await fetch('/api/prompts', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+            
+            if (response.ok) {
+              const data = await response.json()
+              const prompts = data.prompts || []
+              
+              console.log('Prompt restoration debug:', {
+                promptsCount: prompts.length,
+                promptToMatch: currentConversation.prompt_used,
+                availablePrompts: prompts.map((p: Prompt) => ({
+                  id: p.id,
+                  name: p.name
+                }))
+              })
+              
+              // Find prompt by name (since database stores prompt names, not content)
+              const savedPrompt = prompts.find((p: Prompt) => 
+                p.name === currentConversation.prompt_used
+              )
+              
+              if (savedPrompt) {
+                console.log('Found and restoring saved prompt by name:', savedPrompt.name)
+                setSelectedPrompt(savedPrompt)
+              } else {
+                console.log('Prompt not found by name, trying content match...')
+                // Fallback: Try to find by content match (for legacy conversations)
+                const contentMatch = prompts.find((p: Prompt) => 
+                  p.content === currentConversation.prompt_used || 
+                  p.content.trim() === currentConversation.prompt_used.trim()
+                )
+                
+                if (contentMatch) {
+                  console.log('Found prompt by content match:', contentMatch.name)
+                  setSelectedPrompt(contentMatch)
+                } else {
+                  // Last resort: create temporary prompt with the stored content
+                  console.log('Creating temporary prompt - no match found')
+                  const tempPrompt: Prompt = {
+                    id: Date.now(),
+                    user_id: 0,
+                    name: `Restored: ${currentConversation.prompt_used}`,
+                    content: currentConversation.prompt_used,
+                    is_default: false,
+                    CreatedAt: new Date().toISOString()
+                  }
+                  setSelectedPrompt(tempPrompt)
+                  // Also add to session prompts so it appears in the list
+                  setSessionPrompts(prev => {
+                    const exists = prev.find(p => p.content === tempPrompt.content)
+                    if (!exists) {
+                      return [tempPrompt, ...prev]
+                    }
+                    return prev
+                  })
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error restoring system prompt:', error)
+        }
+      }
+    }
+
+    // Only restore if we have a conversation and are logged in
+    if (currentConversation && isLoggedIn) {
+      restoreConversationContext()
+    }
+  }, [currentConversation?.Id || currentConversation?.id, isLoggedIn])
 
   // Toggle MCP enabled/disabled
   const handleMcpToggle = () => {

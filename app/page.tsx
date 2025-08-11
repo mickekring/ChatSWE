@@ -72,6 +72,7 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json()
         const dbMessages = data.messages
+        const conversationData = data.conversation
         
         // Convert database messages to UI format
         const uiMessages: Message[] = dbMessages.map((msg: ChatMessage) => ({
@@ -83,16 +84,9 @@ export default function Home() {
         
         setMessages(uiMessages)
         
-        // Set current database conversation
-        const dbConv = conversations.find(c => c.id === conversationId)
-        if (dbConv) {
-          setCurrentDBConversation({
-            Id: parseInt(conversationId),
-            user_id: 0, // Will be set by server
-            title: dbConv.title,
-            message_count: uiMessages.length,
-            is_archived: false
-          })
+        // Set current database conversation with full data
+        if (conversationData) {
+          setCurrentDBConversation(conversationData)
         }
       }
     } catch (error) {

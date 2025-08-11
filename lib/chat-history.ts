@@ -57,6 +57,22 @@ export async function getUserConversations(userId: number): Promise<Conversation
   }
 }
 
+export async function getConversation(conversationId: number): Promise<Conversation | null> {
+  try {
+    const response = await axios.get(`${NOCODB_API_URL}/api/v1/db/data/v1/${NOCODB_BASE_NAME}/${CONVERSATIONS_TABLE}/${conversationId}`, {
+      headers: {
+        'xc-token': NOCODB_API_TOKEN,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    return response.data
+  } catch (error) {
+    console.error('Error fetching conversation:', error)
+    return null
+  }
+}
+
 export async function createConversation(conversationData: {
   userId: number
   title: string
