@@ -5,13 +5,14 @@ import { functions, executeFunction } from '@/lib/functions'
 import { getMCPTools, executeMCPTool, initializeMCPClient } from '@/lib/mcp-client'
 import { getBergetAIConfig, getJWTSecret } from '@/lib/env-validation'
 
-const JWT_SECRET = getJWTSecret()
-
 // Function to verify JWT token
 function verifyToken(authHeader: string | null): boolean {
-  if (!authHeader || !JWT_SECRET) return false
+  if (!authHeader) return false
   
   try {
+    const JWT_SECRET = getJWTSecret()
+    if (!JWT_SECRET) return false
+    
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
     jwt.verify(token, JWT_SECRET)
     return true
