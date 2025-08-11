@@ -5,12 +5,6 @@ import { functions, executeFunction } from '@/lib/functions'
 import { getMCPTools, executeMCPTool, initializeMCPClient } from '@/lib/mcp-client'
 import { getBergetAIConfig, getJWTSecret } from '@/lib/env-validation'
 
-const bergetConfig = getBergetAIConfig()
-const openai = new OpenAI({
-  apiKey: bergetConfig.apiKey,
-  baseURL: bergetConfig.baseUrl
-})
-
 const JWT_SECRET = getJWTSecret()
 
 // Function to verify JWT token
@@ -29,6 +23,13 @@ function verifyToken(authHeader: string | null): boolean {
 export async function POST(request: NextRequest) {
   try {
     const { messages, model, documentChunks, mcpEnabled = true } = await request.json()
+    
+    // Initialize OpenAI client at request time
+    const bergetConfig = getBergetAIConfig()
+    const openai = new OpenAI({
+      apiKey: bergetConfig.apiKey,
+      baseURL: bergetConfig.baseUrl
+    })
     
     // Check authentication for MCP access
     const authHeader = request.headers.get('authorization')

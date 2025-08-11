@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { getBergetAIConfig } from '@/lib/env-validation'
 
-const bergetConfig = getBergetAIConfig()
-const openai = new OpenAI({
-  apiKey: bergetConfig.apiKey,
-  baseURL: bergetConfig.baseUrl
-})
-
 export async function POST(request: NextRequest) {
   try {
     const { messages } = await request.json()
@@ -15,6 +9,13 @@ export async function POST(request: NextRequest) {
     if (!messages || messages.length === 0) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 })
     }
+
+    // Initialize OpenAI client at request time
+    const bergetConfig = getBergetAIConfig()
+    const openai = new OpenAI({
+      apiKey: bergetConfig.apiKey,
+      baseURL: bergetConfig.baseUrl
+    })
 
     // Create a concise summary of the conversation for title generation
     const conversationSummary = messages
