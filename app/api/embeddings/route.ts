@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { getBergetAIConfig } from '@/lib/env-validation'
 
-const bergetConfig = getBergetAIConfig()
-const openai = new OpenAI({
-  apiKey: bergetConfig.apiKey,
-  baseURL: bergetConfig.baseUrl
-})
-
 export async function POST(request: NextRequest) {
   try {
     const { texts } = await request.json()
@@ -20,7 +14,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No texts provided' }, { status: 400 })
     }
 
-    console.log('Creating embeddings for', texts.length, 'texts using OpenAI')
+    // Initialize OpenAI client at request time
+    const bergetConfig = getBergetAIConfig()
+    const openai = new OpenAI({
+      apiKey: bergetConfig.apiKey,
+      baseURL: bergetConfig.baseUrl
+    })
+
+    console.log('Creating embeddings for', texts.length, 'texts using Berget AI')
     console.log('Text lengths:', texts.map(t => t.length))
 
     // Create embeddings using OpenAI text-embedding-3-small
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
       input: texts,
     })
 
-    console.log('OpenAI embeddings created successfully')
+    console.log('Berget AI embeddings created successfully')
     const embeddings = response.data.map((item: any) => item.embedding)
 
     return NextResponse.json({
@@ -39,9 +40,9 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('OpenAI embeddings API error:', error)
+    console.error('Berget AI embeddings API error:', error)
     return NextResponse.json(
-      { error: 'Failed to create embeddings with OpenAI' },
+      { error: 'Failed to create embeddings with Berget AI' },
       { status: 500 }
     )
   }
