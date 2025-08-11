@@ -1,1 +1,1 @@
-# ChatSWE
+# berget-gpt
