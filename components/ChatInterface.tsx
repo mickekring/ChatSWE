@@ -555,7 +555,7 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
                 // Fallback: Try to find by content match (for legacy conversations)
                 const contentMatch = prompts.find((p: Prompt) => 
                   p.content === currentConversation.prompt_used || 
-                  p.content.trim() === currentConversation.prompt_used.trim()
+                  (currentConversation.prompt_used && p.content.trim() === currentConversation.prompt_used.trim())
                 )
                 
                 if (contentMatch) {
@@ -570,7 +570,7 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
                     name: `Restored: ${currentConversation.prompt_used}`,
                     content: currentConversation.prompt_used,
                     is_default: false,
-                    CreatedAt: new Date().toISOString()
+                    created_at: new Date().toISOString()
                   }
                   setSelectedPrompt(tempPrompt)
                   // Also add to session prompts so it appears in the list
