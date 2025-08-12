@@ -130,14 +130,37 @@ The document contains comprehensive information that has been organized and stru
     } else if (file.type.startsWith('image/')) {
       // Handle image files - convert to base64 for multimodal API
       const buffer = await file.arrayBuffer()
+      const fileSizeInMB = buffer.byteLength / (1024 * 1024)
+      
+      console.log(`Processing image: ${file.name}, Size: ${fileSizeInMB.toFixed(2)}MB`)
+      
+      // Check if image is too large (limit to 2MB for base64 encoding efficiency)
+      // Base64 encoding increases size by ~33%, so 2MB becomes ~2.67MB
+      if (fileSizeInMB > 2) {
+        return NextResponse.json({ 
+          error: `Image file too large: ${fileSizeInMB.toFixed(1)}MB. Please use images smaller than 2MB for vision analysis.` 
+        }, { status: 413 })
+      }
+      
       const base64 = Buffer.from(buffer).toString('base64')
       const dataUrl = `data:${file.type};base64,${base64}`
+      
+      // Check final data URL size
+      const dataUrlSizeInMB = dataUrl.length / (1024 * 1024)
+      console.log(`Base64 data URL size: ${dataUrlSizeInMB.toFixed(2)}MB`)
+      
+      // Additional safety check for total encoded size
+      if (dataUrlSizeInMB > 3) {
+        return NextResponse.json({ 
+          error: `Encoded image too large: ${dataUrlSizeInMB.toFixed(1)}MB. Please use a smaller image for vision analysis.` 
+        }, { status: 413 })
+      }
       
       content = JSON.stringify({
         type: 'image',
         data: dataUrl,
         mimeType: file.type,
-        description: `Image file: ${file.name}`
+        description: `Image file: ${file.name} (${fileSizeInMB.toFixed(1)}MB)`
       })
     } else {
       return NextResponse.json({ 

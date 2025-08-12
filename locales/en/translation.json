@@ -112,6 +112,8 @@
     "remove": "Remove",
     "image": "Image",
     "imageAnalysis": "Images will be analyzed by AI for visual understanding",
+    "imageSizeLimit": "Image analysis: Max 2MB per image",
+    "imageTooLarge": "Image {{filename}} is too large ({{size}}MB). Please use images under 2MB for AI analysis.",
     "fileTooLarge": "File is too large (max 10MB)",
     "unsupportedFormat": "File format not supported"
   },

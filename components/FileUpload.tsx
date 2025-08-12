@@ -50,7 +50,17 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
     const processedFiles: UploadedFile[] = []
 
     for (const file of newFiles) {
-      console.log('Processing file:', file.name, 'Type:', file.type)
+      console.log('Processing file:', file.name, 'Type:', file.type, 'Size:', (file.size / (1024 * 1024)).toFixed(2) + 'MB')
+      
+      // Check image file size before processing
+      if (file.type.startsWith('image/')) {
+        const fileSizeInMB = file.size / (1024 * 1024)
+        if (fileSizeInMB > 2) {
+          alert(`${t('fileUpload.imageTooLarge', { size: fileSizeInMB.toFixed(1), filename: file.name })}`)
+          continue // Skip this file
+        }
+      }
+      
       // Process PDFs, text files, and images
       if (file.type === 'application/pdf' || file.type === 'text/plain' || file.type.startsWith('image/')) {
         try {
@@ -150,6 +160,9 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
               ✨ {t('fileUpload.imageAnalysis')}
             </span>
           )}
+          <span className="block text-gray-400 text-xs mt-1">
+            {t('fileUpload.imageSizeLimit')}
+          </span>
         </p>
         <input
           ref={fileInputRef}
@@ -215,8 +228,12 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           // Fallback to icon if image fails to load
-                          e.currentTarget.style.display = 'none'
-                          e.currentTarget.nextElementSibling!.style.display = 'flex'
+                          const target = e.currentTarget as HTMLImageElement
+                          const sibling = target.nextElementSibling as HTMLElement
+                          target.style.display = 'none'
+                          if (sibling) {
+                            sibling.style.display = 'flex'
+                          }
                         }}
                       />
                       <div className="w-full h-full hidden items-center justify-center">

@@ -112,6 +112,8 @@
     "remove": "Ta bort",
     "image": "Bild",
     "imageAnalysis": "Bilder kommer att analyseras av AI för visuell förståelse",
+    "imageSizeLimit": "Bildanalys: Max 2MB per bild",
+    "imageTooLarge": "Bilden {{filename}} är för stor ({{size}}MB). Använd bilder under 2MB för AI-analys.",
     "fileTooLarge": "Filen är för stor (max 10MB)",
     "unsupportedFormat": "Filformat stöds inte"
   },

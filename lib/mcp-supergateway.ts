@@ -101,7 +101,7 @@ export class MCPSupergatewayClient {
             }))
             
             console.log('Successfully discovered tools via mcp-remote:', tools.length)
-            console.log('Tool names:', tools.map(t => t.name).join(', '))
+            console.log('Tool names:', tools.map((t: any) => t.name).join(', '))
             resolve(tools)
           }
         } catch (parseError) {

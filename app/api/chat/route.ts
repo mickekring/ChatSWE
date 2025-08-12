@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         
         if (imageFiles.length > 0) {
           // Convert to OpenAI vision format
-          const content = [
+          const content: any[] = [
             { type: 'text', text: lastUserMessage.content }
           ]
           
@@ -68,14 +68,14 @@ export async function POST(request: NextRequest) {
                 url: file.imageData.data,
                 detail: 'high'
               }
-            })
+            } as any)
           })
           
           // Update the processed messages
           processedMessages = [...messages]
           processedMessages[lastUserMessageIndex] = {
             ...lastUserMessage,
-            content
+            content: content as any
           }
         }
       }
@@ -266,6 +266,15 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('API route error:', error)
+    
+    // Check if it's a 413 request entity too large error
+    if (error instanceof Error && error.message.includes('413')) {
+      return NextResponse.json(
+        { error: 'Request too large. Please use smaller images (under 4MB) for vision analysis.' },
+        { status: 413 }
+      )
+    }
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
