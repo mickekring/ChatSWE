@@ -1,6 +1,6 @@
-import { Message } from './types'
+import { Message, UploadedFile } from './types'
 
-export async function* streamMessage(messages: Message[], model: string, systemPrompt?: string, onFunctionCall?: (name: string, args: any) => void, documentChunks?: any[], mcpEnabled: boolean = true) {
+export async function* streamMessage(messages: Message[], model: string, systemPrompt?: string, onFunctionCall?: (name: string, args: any) => void, documentChunks?: any[], mcpEnabled: boolean = true, uploadedFiles?: UploadedFile[]) {
   try {
     const formattedMessages = messages.map(msg => ({
       role: msg.role as 'user' | 'assistant' | 'system',
@@ -32,7 +32,8 @@ export async function* streamMessage(messages: Message[], model: string, systemP
         messages: messagesWithSystem,
         model: model,
         documentChunks: documentChunks || [],
-        mcpEnabled: mcpEnabled
+        mcpEnabled: mcpEnabled,
+        uploadedFiles: uploadedFiles || []
       })
     })
 

@@ -23,7 +23,7 @@ function verifyToken(authHeader: string | null): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, model, documentChunks, mcpEnabled = true } = await request.json()
+    const { messages, model, documentChunks, mcpEnabled = true, uploadedFiles = [] } = await request.json()
     
     // Initialize OpenAI client at request time
     const bergetConfig = getBergetAIConfig()
@@ -41,6 +41,45 @@ export async function POST(request: NextRequest) {
 
     // Only enable function calling for Llama model (which supports it) and if MCP is allowed
     const supportsTools = model.includes('Llama') && mcpAllowed
+    
+    // Check if this is a multimodal request (Mistral Small with images)
+    const supportsVision = model.includes('Mistral-Small') && uploadedFiles.some((file: any) => file.isImage)
+    
+    // Process messages for multimodal requests
+    let processedMessages = messages
+    if (supportsVision) {
+      // Find the last user message and add images to it
+      const lastUserMessageIndex = messages.findLastIndex((msg: any) => msg.role === 'user')
+      if (lastUserMessageIndex !== -1) {
+        const lastUserMessage = messages[lastUserMessageIndex]
+        const imageFiles = uploadedFiles.filter((file: any) => file.isImage && file.imageData)
+        
+        if (imageFiles.length > 0) {
+          // Convert to OpenAI vision format
+          const content = [
+            { type: 'text', text: lastUserMessage.content }
+          ]
+          
+          // Add images
+          imageFiles.forEach((file: any) => {
+            content.push({
+              type: 'image_url',
+              image_url: {
+                url: file.imageData.data,
+                detail: 'high'
+              }
+            })
+          })
+          
+          // Update the processed messages
+          processedMessages = [...messages]
+          processedMessages[lastUserMessageIndex] = {
+            ...lastUserMessage,
+            content
+          }
+        }
+      }
+    }
 
     if (supportsTools) {
       try {
@@ -73,7 +112,7 @@ export async function POST(request: NextRequest) {
         // First, try to get a response with function calling
         const initialResponse = await openai.chat.completions.create({
           model: model,
-          messages: messages,
+          messages: processedMessages,
           temperature: 0.7,
           max_tokens: 2000,
           stream: false,
@@ -133,7 +172,7 @@ export async function POST(request: NextRequest) {
 
           // Add function result to conversation
           const messagesWithFunction = [
-            ...messages,
+            ...processedMessages,
             initialMessage,
             {
               role: 'tool',
@@ -193,7 +232,7 @@ export async function POST(request: NextRequest) {
     // No function call needed or function calling not supported, stream normal response
     const stream = await openai.chat.completions.create({
       model: model,
-      messages: messages,
+      messages: processedMessages,
       temperature: 0.7,
       max_tokens: 2000,
       stream: true

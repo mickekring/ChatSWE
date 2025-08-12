@@ -127,9 +127,21 @@ The document contains comprehensive information that has been organized and stru
     } else if (file.type === 'text/plain') {
       // Read text file directly
       content = await file.text()
+    } else if (file.type.startsWith('image/')) {
+      // Handle image files - convert to base64 for multimodal API
+      const buffer = await file.arrayBuffer()
+      const base64 = Buffer.from(buffer).toString('base64')
+      const dataUrl = `data:${file.type};base64,${base64}`
+      
+      content = JSON.stringify({
+        type: 'image',
+        data: dataUrl,
+        mimeType: file.type,
+        description: `Image file: ${file.name}`
+      })
     } else {
       return NextResponse.json({ 
-        error: `Unsupported file type: ${file.type}. Please upload PDF or text files.` 
+        error: `Unsupported file type: ${file.type}. Please upload PDF, text files, or images (JPG, PNG, GIF).` 
       }, { status: 400 })
     }
 

@@ -17,8 +17,36 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const forceRefresh = searchParams.get('refresh') === 'true'
     
-    // Always check cache first and return immediately if available
-    if (!forceRefresh && toolsCache && toolsCache.tools.length > 0) {
+    // Force refresh - disconnect client and clear cache
+    if (forceRefresh) {
+      console.log('Force refresh requested - clearing cache and reconnecting')
+      const mcpClient = getMCPClient()
+      if (mcpClient) {
+        mcpClient.disconnect()
+      }
+      toolsCache = null
+      
+      // Re-initialize and fetch fresh tools
+      const freshTools = await initializeMCPClient()
+      if (freshTools.length > 0) {
+        toolsCache = {
+          tools: freshTools,
+          lastUpdated: Date.now()
+        }
+        console.log('Fresh tools fetched:', freshTools.length)
+        return NextResponse.json({
+          success: true,
+          tools: freshTools,
+          cached: false,
+          lastUpdated: toolsCache.lastUpdated,
+          refreshed: true
+        })
+      }
+    }
+    
+    // Check cache first and return immediately if available and not expired
+    const cacheExpired = toolsCache && (Date.now() - toolsCache.lastUpdated) > CACHE_DURATION
+    if (!cacheExpired && toolsCache && toolsCache.tools.length > 0) {
       console.log('Returning cached MCP tools:', toolsCache.tools.length)
       return NextResponse.json({
         success: true,
@@ -49,31 +77,35 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // No tools found - start background initialization but return empty immediately
-    console.log('No tools available, starting background initialization')
+    // No tools found or cache expired - initialize to get fresh tools
+    console.log('No tools available or cache expired, fetching fresh tools')
     
-    // Start background initialization - don't await
-    setTimeout(() => {
-      initializeMCPClient().then((backgroundTools) => {
-        if (backgroundTools.length > 0) {
-          console.log('Background MCP initialization completed with', backgroundTools.length, 'tools')
-          toolsCache = {
-            tools: backgroundTools,
-            lastUpdated: Date.now()
-          }
+    try {
+      const freshTools = await initializeMCPClient()
+      if (freshTools.length > 0) {
+        console.log('Fresh MCP tools fetched:', freshTools.length)
+        toolsCache = {
+          tools: freshTools,
+          lastUpdated: Date.now()
         }
-      }).catch(error => {
-        console.error('Background MCP initialization failed:', error)
-      })
-    }, 100) // Start after 100ms to avoid blocking response
+        return NextResponse.json({
+          success: true,
+          tools: freshTools,
+          cached: false,
+          lastUpdated: toolsCache.lastUpdated
+        })
+      }
+    } catch (initError) {
+      console.error('Failed to initialize MCP client:', initError)
+    }
 
-    // Return empty tools immediately
+    // Return empty tools if all else fails
     return NextResponse.json({
       success: true,
       tools: [],
       cached: false,
       lastUpdated: Date.now(),
-      message: 'No tools available yet, initializing in background'
+      message: 'No tools available'
     })
   } catch (error) {
     console.error('Failed to get MCP tools:', error)

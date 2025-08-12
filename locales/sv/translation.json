@@ -32,6 +32,13 @@
       "devstral": "Kodningsmodell från Mistral"
     }
   },
+  "capabilities": {
+    "chat": "Chat",
+    "internetSearch": "Internetsök", 
+    "fileUpload": "Filuppladdning",
+    "mcpTools": "MCP Verktyg",
+    "vision": "Bildanalys"
+  },
   "auth": {
     "signIn": "Logga in",
     "signOut": "Logga ut",
@@ -93,12 +100,18 @@
     "noPrompts": "Inga prompter ännu. Skapa din första prompt för att komma igång!"
   },
   "fileUpload": {
-    "dragDrop": "Dra och släpp filer här eller klicka för att välja",
+    "dragDrop": "Dra och släpp filer här eller klicka nedan för att välja",
     "selectFiles": "Välj filer",
-    "supportedFormats": "Stöds: PDF, TXT, DOC, DOCX (max 10MB)",
+    "supportedFormats": "Stöds: PDF, textfiler och bilder (JPG, PNG, GIF)",
     "processing": "Bearbetar filer...",
-    "documentsReady": "Dokument redo för chatt!",
+    "documentsReady": "Dokument bearbetade och redo för chatt! Du kan nu ställa frågor om dina uppladdade filer.",
+    "creatingEmbeddings": "Skapar inbäddningar för dokumentsökning...",
+    "uploadedFiles": "Uppladdade filer ({{count}})",
+    "uploadedFiles_one": "Uppladdad fil ({{count}})",
+    "uploadedFiles_other": "Uppladdade filer ({{count}})",
     "remove": "Ta bort",
+    "image": "Bild",
+    "imageAnalysis": "Bilder kommer att analyseras av AI för visuell förståelse",
     "fileTooLarge": "Filen är för stor (max 10MB)",
     "unsupportedFormat": "Filformat stöds inte"
   },

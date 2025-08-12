@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
 import { Model } from '@/lib/types'
 import { clsx } from 'clsx'
+import { useTranslation } from 'react-i18next'
 
 interface ModelSelectorProps {
   models: Model[]
@@ -13,6 +14,7 @@ interface ModelSelectorProps {
 
 export default function ModelSelector({ models, selectedModel, onSelectModel }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const { t } = useTranslation()
 
   return (
     <div className="relative">
@@ -67,7 +69,7 @@ export default function ModelSelector({ models, selectedModel, onSelectModel }: 
                             key={capability}
                             className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
                           >
-                            {capability}
+                            {t(`capabilities.${capability}`)}
                           </span>
                         ))}
                       </div>

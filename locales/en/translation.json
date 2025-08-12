@@ -32,6 +32,13 @@
       "devstral": "Coding model from Mistral"
     }
   },
+  "capabilities": {
+    "chat": "Chat",
+    "internetSearch": "Internet search",
+    "fileUpload": "File upload", 
+    "mcpTools": "MCP Tools",
+    "vision": "Image analysis"
+  },
   "auth": {
     "signIn": "Sign In",
     "signOut": "Sign Out", 
@@ -93,12 +100,18 @@
     "noPrompts": "No prompts yet. Create your first prompt to get started!"
   },
   "fileUpload": {
-    "dragDrop": "Drag and drop files here or click to select",
+    "dragDrop": "Drag and drop files here or click below to select",
     "selectFiles": "Select Files",
-    "supportedFormats": "Supported: PDF, TXT, DOC, DOCX (max 10MB)",
+    "supportedFormats": "Supported: PDF, text files, and images (JPG, PNG, GIF)",
     "processing": "Processing files...",
-    "documentsReady": "Documents ready for chat!",
+    "documentsReady": "Documents processed and ready for chat! You can now ask questions about your uploaded files.",
+    "creatingEmbeddings": "Creating embeddings for document search...",
+    "uploadedFiles": "Uploaded Files ({{count}})",
+    "uploadedFiles_one": "Uploaded File ({{count}})",
+    "uploadedFiles_other": "Uploaded Files ({{count}})",
     "remove": "Remove",
+    "image": "Image",
+    "imageAnalysis": "Images will be analyzed by AI for visual understanding",
     "fileTooLarge": "File is too large (max 10MB)",
     "unsupportedFormat": "File format not supported"
   },

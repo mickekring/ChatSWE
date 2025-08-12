@@ -13,6 +13,7 @@ if (typeof window !== 'undefined') {
 // Import proxy service for tool execution
 import { executeMCPToolViaProxy } from './mcp-proxy'
 import { getMCPConfig } from './env-validation'
+import { MCPSupergatewayClient } from './mcp-supergateway'
 
 export interface MCPTool {
   name: string
@@ -45,6 +46,7 @@ class MCPClient {
   private tools: MCPTool[] = []
   private connected: boolean = false
   private eventSource: EventSource | null = null
+  private supergatewayClient: MCPSupergatewayClient | null = null
 
   constructor(serverUrl: string) {
     // Extract base URL and SSE URL
@@ -67,6 +69,15 @@ class MCPClient {
       console.log('Initializing MCP client...')
       console.log('Timestamp:', new Date().toISOString())
       
+      // Check if this is an n8n server that needs supergateway
+      if (this.baseUrl.includes('nodemation.labbytan.se')) {
+        console.log('Detected n8n MCP server - using supergateway approach (like Claude Desktop)')
+        return await this.initializeWithSupergateway()
+      }
+      
+      // Fallback to original HTTP approach for other servers
+      console.log('Using direct HTTP approach for non-n8n server')
+      
       // Optional: Connect to SSE for streaming (not required for basic functionality)
       this.connectSSE()
       
@@ -87,6 +98,28 @@ class MCPClient {
         stack: error instanceof Error ? error.stack : undefined
       })
       this.connected = false
+      return []
+    }
+  }
+
+  // Initialize using supergateway (same as Claude Desktop)
+  private async initializeWithSupergateway(): Promise<MCPTool[]> {
+    try {
+      console.log('Initializing with supergateway for n8n server:', this.baseUrl)
+      
+      this.supergatewayClient = new MCPSupergatewayClient(this.baseUrl)
+      const tools = await this.supergatewayClient.initialize()
+      
+      this.tools = tools
+      this.connected = this.supergatewayClient.isConnected()
+      
+      console.log('Supergateway MCP client initialized:', this.connected)
+      console.log('Tools discovered:', tools.length)
+      console.log('Tool names:', tools.map(t => t.name).join(', '))
+      
+      return tools
+    } catch (error) {
+      console.error('Failed to initialize with supergateway:', error)
       return []
     }
   }
@@ -118,83 +151,219 @@ class MCPClient {
     }
   }
 
-  // Discover available tools - using known tools from your Claude Desktop setup
+  // Discover available tools using supergateway SSE approach (same as Claude Desktop)
   private async discoverTools(): Promise<MCPTool[]> {
     try {
-      console.log('Using known n8n MCP tools from your Claude Desktop configuration')
+      console.log('Discovering tools using supergateway SSE approach for n8n server:', this.baseUrl)
       
-      // These are the tools you mentioned are available in your n8n MCP server
-      const knownTools = [
-        {
-          name: 'wikipedia-api',
-          description: 'A tool for interacting with and fetching data from the Wikipedia API. The input should always be a string query.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              input: { type: 'string' }
-            },
-            required: ['input']
-          }
-        },
-        {
-          name: 'Discord',
-          description: 'Send a message in Discord',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              Message: { type: 'string' }
-            },
-            required: ['Message']
-          }
-        },
-        {
-          name: 'eduassist',
-          description: 'Vid frågor om saker som rör läroplanen för svensk grundskola, ska du alltid hämta information härifrån.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              input: { type: 'string' }
-            },
-            required: ['input']
-          }
-        },
-        {
-          name: 'Send_Email',
-          description: 'send email in Send Email',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              To_Email: { type: 'string' },
-              Subject: { type: 'string' },
-              HTML: { type: 'string' }
-            },
-            required: ['To_Email', 'Subject', 'HTML']
+      // Helper function to parse SSE response
+      const parseSSEResponse = (text: string): any => {
+        const lines = text.split('\n')
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            return JSON.parse(line.substring(6))
           }
         }
-      ]
-      
-      console.log('Loaded', knownTools.length, 'known n8n MCP tools')
-      console.log('Tool names:', knownTools.map(t => t.name))
-      
-      return knownTools
+        throw new Error('No data found in SSE response')
+      }
+
+      // Try to get tools directly first (n8n might not require separate initialization)
+      console.log('Attempting direct tools/list request...')
+      try {
+        const directToolsResponse = await fetch(this.baseUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/event-stream'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'tools/list',
+            params: {},
+            id: Date.now()
+          })
+        })
+
+        if (directToolsResponse.ok) {
+          const directToolsText = await directToolsResponse.text()
+          console.log('Direct tools response:', directToolsText)
+          
+          const directToolsData = parseSSEResponse(directToolsText)
+          
+          if (directToolsData.result && directToolsData.result.tools) {
+            const tools = directToolsData.result.tools.map((tool: any) => ({
+              name: tool.name,
+              description: tool.description || 'No description available',
+              inputSchema: tool.inputSchema || {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            }))
+            
+            console.log('Successfully discovered', tools.length, 'tools directly')
+            console.log('Tool names:', tools.map((t: MCPTool) => t.name).join(', '))
+            return tools
+          } else if (directToolsData.error && directToolsData.error.message.includes('not initialized')) {
+            console.log('Server requires initialization, proceeding with full handshake...')
+          }
+        }
+      } catch (error) {
+        console.log('Direct tools request failed, trying with initialization:', error)
+      }
+
+      // If direct approach failed, try with initialization
+      console.log('Initializing MCP server...')
+      const initResponse = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {},
+              prompts: {},
+              resources: {}
+            },
+            clientInfo: {
+              name: 'n8n-chat-client',
+              version: '1.0.0'
+            }
+          },
+          id: Date.now()
+        })
+      })
+
+      if (!initResponse.ok) {
+        console.error('Failed to initialize MCP server:', initResponse.status, initResponse.statusText)
+        throw new Error(`Server initialization failed: ${initResponse.status}`)
+      }
+
+      const initText = await initResponse.text()
+      console.log('Raw init response:', initText)
+      const initData = parseSSEResponse(initText)
+      console.log('MCP server initialized:', initData)
+
+      // n8n MCP Server doesn't maintain session between requests
+      // Check if tools are declared in the capabilities from initialization
+      if (initData.result && initData.result.capabilities && initData.result.capabilities.tools) {
+        const toolsCapabilities = initData.result.capabilities.tools
+        console.log('Tools capabilities from init:', toolsCapabilities)
+        
+        // If tools are defined in capabilities, try to extract them
+        if (Object.keys(toolsCapabilities).length > 0) {
+          console.log('Found tools in capabilities:', Object.keys(toolsCapabilities))
+          // Convert capabilities to tool definitions
+          const tools = Object.keys(toolsCapabilities).map(toolName => ({
+            name: toolName,
+            description: toolsCapabilities[toolName]?.description || 'No description available',
+            inputSchema: toolsCapabilities[toolName]?.inputSchema || {
+              type: 'object',
+              properties: {},
+              required: []
+            }
+          }))
+          
+          console.log('Extracted tools from capabilities:', tools)
+          return tools
+        }
+      }
+
+      // Try separate tools/list request (might fail due to stateless nature)
+      console.log('No tools in capabilities, trying separate tools/list request...')
+      try {
+        const toolsResponse = await fetch(this.baseUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/event-stream'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'tools/list',
+            params: {},
+            id: Date.now()
+          })
+        })
+
+        if (toolsResponse.ok) {
+          const toolsText = await toolsResponse.text()
+          console.log('Raw tools response:', toolsText)
+          const toolsData = parseSSEResponse(toolsText)
+          console.log('Tools response:', toolsData)
+          
+          // Process tools data (keep the existing logic)
+          if (toolsData.result && toolsData.result.tools) {
+            const tools = toolsData.result.tools.map((tool: any) => ({
+              name: tool.name,
+              description: tool.description || 'No description available',
+              inputSchema: tool.inputSchema || {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            }))
+            
+            console.log('Successfully discovered', tools.length, 'tools from separate request')
+            return tools
+          }
+        } else {
+          console.log('Separate tools/list request failed:', toolsResponse.status, toolsResponse.statusText)
+        }
+      } catch (separateError) {
+        console.log('Separate tools/list request failed:', separateError)
+      }
+
+      // If we get here, no tools were found
+      console.warn('No tools discovered from n8n MCP server')
+      console.warn('This likely means either:')
+      console.warn('1. No tools are configured in the n8n MCP workflow')
+      console.warn('2. The n8n server requires persistent connections (not stateless HTTP)')
+      return []
     } catch (error) {
       console.error('Tool discovery error:', error)
-      throw error
+      console.error('Failed to dynamically discover tools from n8n MCP server')
+      
+      // Don't throw - return empty array so the app doesn't break
+      return []
     }
   }
 
-  // Execute a tool call via mcp-remote proxy to n8n server
+  // Execute a tool call - use supergateway for n8n servers, fallback to proxy
   async callTool(toolCall: MCPToolCall): Promise<MCPToolResult> {
     try {
-      console.log('MCP tool call via proxy:', toolCall.name, 'with args:', toolCall.arguments)
+      console.log('MCP tool call:', toolCall.name, 'with args:', toolCall.arguments)
       
-      // Execute the tool via the proxy
+      // Use supergateway client if available (for n8n servers)
+      if (this.supergatewayClient && this.supergatewayClient.isConnected()) {
+        console.log('Using supergateway for tool execution')
+        return await this.supergatewayClient.callTool(toolCall)
+      }
+      
+      // Try direct HTTP execution for non-n8n servers
+      try {
+        const result = await this.executeToolDirectly(toolCall)
+        if (result && !result.isError) {
+          console.log('Direct MCP tool execution successful')
+          return result
+        }
+      } catch (directError) {
+        console.log('Direct tool execution failed, trying proxy:', directError)
+      }
+      
+      // Fallback to mcp-remote proxy
+      console.log('Using mcp-remote proxy for tool execution')
       const result = await executeMCPToolViaProxy(toolCall)
       
       console.log('MCP proxy result:', result)
       return result
     } catch (error) {
-      console.error('Failed to call MCP tool via proxy:', error)
+      console.error('Failed to call MCP tool:', error)
       return {
         content: [{ 
           type: 'text', 
@@ -202,6 +371,71 @@ class MCPClient {
         }],
         isError: true
       }
+    }
+  }
+
+  // Execute tool directly via HTTP (handles n8n's SSE format)
+  private async executeToolDirectly(toolCall: MCPToolCall): Promise<MCPToolResult> {
+    try {
+      console.log('Executing tool directly via HTTP:', toolCall.name)
+      
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: toolCall.name,
+            arguments: toolCall.arguments || {}
+          },
+          id: Date.now()
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const responseText = await response.text()
+      console.log('Direct tool execution response:', responseText)
+
+      // Parse SSE response
+      const lines = responseText.split('\n')
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = JSON.parse(line.substring(6))
+          
+          if (data.error) {
+            return {
+              content: [{ 
+                type: 'text', 
+                text: `Tool execution error: ${data.error.message || 'Unknown error'}` 
+              }],
+              isError: true
+            }
+          }
+          
+          if (data.result) {
+            // Convert n8n result format to MCP format
+            return {
+              content: [{ 
+                type: 'text', 
+                text: typeof data.result === 'string' ? data.result : JSON.stringify(data.result, null, 2)
+              }],
+              isError: false
+            }
+          }
+        }
+      }
+      
+      throw new Error('No valid data found in SSE response')
+    } catch (error) {
+      console.error('Direct tool execution failed:', error)
+      throw error
     }
   }
 
@@ -217,6 +451,10 @@ class MCPClient {
 
   // Disconnect from the MCP server
   disconnect(): void {
+    if (this.supergatewayClient) {
+      this.supergatewayClient.disconnect()
+      this.supergatewayClient = null
+    }
     if (this.eventSource) {
       this.eventSource.close()
       this.eventSource = null
@@ -239,8 +477,8 @@ export async function initializeMCPClient(
     try {
       finalServerUrl = getMCPConfig().serverUrl
     } catch {
-      // MCP is optional, use default URL
-      finalServerUrl = 'https://nodemation.labbytan.se/mcp/myfirstmcpserver'
+      // MCP is optional, use new n8n MCP server URL  
+      finalServerUrl = 'https://nodemation.labbytan.se/mcp/71780819-b168-41ba-97eb-f4c85e15f78a'
     }
   }
   console.log('initializeMCPClient called with URL:', finalServerUrl)

@@ -32,6 +32,13 @@ export interface UploadedFile {
   size: number
   type: string
   content: string
+  isImage?: boolean
+  imageData?: {
+    type: 'image'
+    data: string // base64 data URL
+    mimeType: string
+    description: string
+  }
 }
 
 export interface DocumentChunk {

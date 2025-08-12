@@ -60,6 +60,7 @@ export class MCPProxy {
       let stdout = ''
       let stderr = ''
       let resolved = false
+      let initialized = false
       
       // Set timeout first
       const timeoutId = setTimeout(() => {
@@ -88,8 +89,30 @@ export class MCPProxy {
           console.log('Detected JSON-RPC response in stdout')
           try {
             const response = JSON.parse(chunk.trim())
-            if (response.result && response.id) {
-              console.log('Parsing JSON-RPC response immediately')
+            
+            // Check for initialization response
+            if (!initialized && response.result && response.result.protocolVersion) {
+              console.log('mcp-remote proxy initialized successfully')
+              initialized = true
+              
+              // Now send the actual tool call
+              const toolRequest = {
+                jsonrpc: '2.0',
+                method: 'tools/call',
+                params: {
+                  name: toolCall.name,
+                  arguments: toolCall.arguments || {}
+                },
+                id: Date.now()
+              }
+              console.log('Sending tool call request after initialization:', toolRequest)
+              process.stdin.write(JSON.stringify(toolRequest) + '\n')
+              return
+            }
+            
+            // Check for tool execution response
+            if (initialized && response.result && response.id) {
+              console.log('Parsing tool execution response')
               // We got a valid response - resolve immediately
               resolved = true
               clearTimeout(timeoutId)
@@ -123,19 +146,28 @@ export class MCPProxy {
         console.log('mcp-remote stderr chunk:', chunk)
       })
 
-      // Send the tool call request via stdin
-      const request = {
+      // Send initialization request first (required by n8n server)
+      const initRequest = {
         jsonrpc: '2.0',
-        method: 'tools/call',
+        method: 'initialize',
         params: {
-          name: toolCall.name,
-          arguments: toolCall.arguments
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {},
+            prompts: {},
+            resources: {}
+          },
+          clientInfo: {
+            name: 'berget-gpt-client',
+            version: '1.0.0'
+          }
         },
         id: Date.now()
       }
 
       try {
-        process.stdin.write(JSON.stringify(request) + '\n')
+        console.log('Sending initialization request to mcp-remote proxy')
+        process.stdin.write(JSON.stringify(initRequest) + '\n')
         // Don't close stdin immediately - keep the connection open for response
       } catch (error) {
         console.error('Error writing to mcp-remote stdin:', error)
@@ -222,9 +254,9 @@ export function getMCPProxy(): MCPProxy {
     try {
       mcpConfig = getMCPConfig()
     } catch {
-      // MCP is optional, use default values
+      // MCP is optional, use supergateway approach for n8n server
       mcpConfig = {
-        serverUrl: 'https://nodemation.labbytan.se/mcp/myfirstmcpserver/sse',
+        serverUrl: 'https://nodemation.labbytan.se/mcp/71780819-b168-41ba-97eb-f4c85e15f78a',
         authToken: undefined
       }
     }

@@ -39,25 +39,25 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
       id: 'openai/gpt-oss-120b', 
       name: 'GPT-OSS 120B', 
       description: t('chat.models.gptOss'),
-      capabilities: ['Chat']
+      capabilities: ['chat']
     },
     { 
       id: 'meta-llama/Llama-3.3-70B-Instruct', 
       name: 'Llama 3.3 70B', 
       description: t('chat.models.llama'),
-      capabilities: ['Chat', 'Internetsök', 'Filuppladdning']
+      capabilities: ['chat', 'internetSearch', 'fileUpload', 'mcpTools']
     },
     { 
       id: 'mistralai/Mistral-Small-3.1-24B-Instruct-2503', 
       name: 'Mistral Small 3.1 24B', 
       description: t('chat.models.mistralSmall'),
-      capabilities: ['Chat']
+      capabilities: ['chat', 'vision']
     },
     { 
       id: 'mistralai/Devstral-Small-2505', 
       name: 'Devstral Small', 
       description: t('chat.models.devstral'),
-      capabilities: ['Chat']
+      capabilities: ['chat']
     }
   ]
 
@@ -85,6 +85,7 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
   const [documentChunks, setDocumentChunks] = useState<DocumentChunk[]>([])
   const [isProcessingFiles, setIsProcessingFiles] = useState(false)
   const [showFileUpload, setShowFileUpload] = useState(false)
+  const [showUploadArea, setShowUploadArea] = useState(true)
   const [mcpToolsAvailable, setMcpToolsAvailable] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -228,7 +229,7 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
       const promptToUse = selectedPrompt?.content || systemPrompt || undefined
       const stream = streamMessage(updatedMessages, selectedModel.id, promptToUse, (name, args) => {
         setCurrentFunctionCall({ name, args })
-      }, documentChunks, mcpEnabled && isLoggedIn)
+      }, documentChunks, mcpEnabled && isLoggedIn, uploadedFiles)
       
       for await (const chunk of stream) {
         fullContent += chunk
@@ -359,7 +360,7 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
             const promptToUse = selectedPrompt?.content || systemPrompt || undefined
             const stream = streamMessage(updatedMessages, selectedModel.id, promptToUse, (name, args) => {
               setCurrentFunctionCall({ name, args })
-            }, documentChunks, mcpEnabled && isLoggedIn)
+            }, documentChunks, mcpEnabled && isLoggedIn, uploadedFiles)
             
             for await (const chunk of stream) {
               fullContent += chunk
@@ -422,6 +423,7 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
       setUploadedFiles([])
       setDocumentChunks([])
       setShowFileUpload(false)
+      setShowUploadArea(true) // Reset upload area visibility
     }
   }, [])
 
@@ -597,14 +599,41 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
     }
   }, [currentConversation?.Id || currentConversation?.id, isLoggedIn])
 
-  // Toggle MCP enabled/disabled
-  const handleMcpToggle = () => {
+  // Toggle MCP enabled/disabled or refresh tools
+  const handleMcpToggle = async () => {
     // Only allow MCP toggle if user is logged in
     if (!isLoggedIn) {
       setShowLoginModal(true)
       return
     }
     
+    // If MCP is already enabled and tools are available, force refresh
+    if (mcpEnabled && mcpToolsAvailable) {
+      console.log('Force refreshing MCP tools...')
+      setMcpCheckInProgress(true)
+      setMcpToolsAvailable(false)
+      setMcpDiscoveredTools([])
+      
+      try {
+        const response = await fetch('/api/mcp?refresh=true')
+        if (response.ok) {
+          const data = await response.json()
+          console.log('MCP refresh response:', data)
+          if (data.success && data.tools && data.tools.length > 0) {
+            const toolNames = data.tools.map((tool: any) => tool.name)
+            setMcpDiscoveredTools(toolNames)
+            setMcpToolsAvailable(true)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh MCP tools:', error)
+      } finally {
+        setMcpCheckInProgress(false)
+      }
+      return
+    }
+    
+    // Otherwise toggle MCP on/off
     const newEnabled = !mcpEnabled
     setMcpEnabled(newEnabled)
     // Save preference to localStorage
@@ -622,12 +651,19 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
         return
       }
 
-      console.log('Processing', files.length, 'files for embeddings')
+      console.log('Processing', files.length, 'files')
       
-      // Create chunks from all files
+      // Separate text files (PDFs, TXT) from image files
+      const textFiles = files.filter(file => !file.isImage)
+      const imageFiles = files.filter(file => file.isImage)
+      
+      console.log('Text files for embeddings:', textFiles.length)
+      console.log('Image files for vision:', imageFiles.length)
+      
+      // Create chunks only from text files
       const allChunks: DocumentChunk[] = []
-      for (const file of files) {
-        console.log(`File: ${file.name}, Content length: ${file.content.length}`)
+      for (const file of textFiles) {
+        console.log(`Text file: ${file.name}, Content length: ${file.content.length}`)
         console.log(`First 200 chars: ${file.content.substring(0, 200)}...`)
         const fileChunks = chunkText(file.content, file.name)
         console.log(`Created ${fileChunks.length} chunks for ${file.name}`)
@@ -637,10 +673,10 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
         allChunks.push(...fileChunks)
       }
 
-      console.log('Created', allChunks.length, 'chunks from files')
+      console.log('Created', allChunks.length, 'chunks from text files')
 
       if (allChunks.length > 0) {
-        // Get embeddings for all chunks
+        // Get embeddings only for text chunks
         const texts = allChunks.map(chunk => chunk.content)
         const response = await fetch('/api/embeddings', {
           method: 'POST',
@@ -662,17 +698,27 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
             embedding: embeddings[index]
           }))
           setDocumentChunks(chunksWithEmbeddings)
-          console.log('Documents are ready for chat!')
+          console.log('Text documents are ready for chat!')
         } else {
           console.error('Failed to generate embeddings:', response.status)
         }
       } else {
         setDocumentChunks([])
       }
+      
+      // Images don't need embeddings - they work directly with vision API
+      if (imageFiles.length > 0) {
+        console.log('Images are ready for vision analysis!')
+      }
+      
     } catch (error) {
       console.error('Error processing files:', error)
     } finally {
       setIsProcessingFiles(false)
+      // Auto-close upload area (but keep file list visible) after processing
+      if (files.length > 0) {
+        setShowUploadArea(false)
+      }
     }
   }
 
@@ -726,7 +772,7 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
                     : mcpCheckInProgress
                     ? "Connecting to MCP server..."
                     : mcpToolsAvailable && mcpDiscoveredTools.length > 0
-                    ? `MCP tools available: ${mcpDiscoveredTools.join(', ')}`
+                    ? `MCP tools available: ${mcpDiscoveredTools.join(', ')} (Click to refresh)`
                     : "MCP connection failed - Click to retry"
                 }
               >
@@ -851,6 +897,8 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
                   onFilesChange={handleFilesChange}
                   isProcessing={isProcessingFiles}
                   documentsReady={documentChunks.length > 0}
+                  selectedModelId={selectedModel.id}
+                  showUploadArea={showUploadArea}
                 />
               </div>
             )}
@@ -858,13 +906,22 @@ export default function ChatInterface({ messages, setMessages, onNewChat, isSide
               <div className="relative flex items-end gap-2 bg-gray-100 dark:bg-gray-900 rounded-2xl p-2 mb-0.5">
                 <button
                   type="button"
-                  onClick={() => setShowFileUpload(!showFileUpload)}
+                  onClick={() => {
+                    setShowFileUpload(!showFileUpload)
+                    if (!showFileUpload) {
+                      setShowUploadArea(true) // Show upload area when opening file upload
+                    }
+                  }}
                   className={`p-2 rounded-lg transition-colors ${
                     uploadedFiles.length > 0 
                       ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800' 
                       : 'hover:bg-gray-200 dark:hover:bg-gray-800'
                   }`}
-                  title={uploadedFiles.length > 0 ? t('chat.filesUploaded', { count: uploadedFiles.length }) : t('chat.uploadFiles')}
+                  title={
+                    uploadedFiles.length > 0 
+                      ? `${t('chat.filesUploaded', { count: uploadedFiles.length })}${uploadedFiles.some(f => f.isImage) && selectedModel.id.includes('Mistral-Small') ? ' - Images will be analyzed by AI' : ''}` 
+                      : t('chat.uploadFiles')
+                  }
                 >
                   <Paperclip size={20} className={`${uploadedFiles.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`} />
                 </button>

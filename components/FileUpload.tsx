@@ -1,17 +1,21 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, File, X, FileText } from 'lucide-react'
+import { Upload, File, X, FileText, Image } from 'lucide-react'
 import { UploadedFile } from '@/lib/types'
+import { useTranslation } from 'react-i18next'
 
 interface FileUploadProps {
   files: UploadedFile[]
   onFilesChange: (files: UploadedFile[]) => void
   isProcessing: boolean
   documentsReady?: boolean
+  selectedModelId?: string
+  showUploadArea?: boolean
 }
 
-export default function FileUpload({ files, onFilesChange, isProcessing, documentsReady = false }: FileUploadProps) {
+export default function FileUpload({ files, onFilesChange, isProcessing, documentsReady = false, selectedModelId, showUploadArea = true }: FileUploadProps) {
+  const { t } = useTranslation()
   const [isDragOver, setIsDragOver] = useState(false)
   const [processingStatus, setProcessingStatus] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -47,10 +51,10 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
 
     for (const file of newFiles) {
       console.log('Processing file:', file.name, 'Type:', file.type)
-      // Only process PDFs and text files for now
-      if (file.type === 'application/pdf' || file.type === 'text/plain') {
+      // Process PDFs, text files, and images
+      if (file.type === 'application/pdf' || file.type === 'text/plain' || file.type.startsWith('image/')) {
         try {
-          setProcessingStatus(`Processing ${file.name}...`)
+          setProcessingStatus(t('fileUpload.processing'))
           
           const formData = new FormData()
           formData.append('file', file)
@@ -62,13 +66,26 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
 
           if (response.ok) {
             const result = await response.json()
-            processedFiles.push({
+            const isImage = file.type.startsWith('image/')
+            const uploadedFile: UploadedFile = {
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               name: file.name,
               size: file.size,
               type: file.type,
-              content: result.content
-            })
+              content: result.content,
+              isImage
+            }
+            
+            // Parse image data if this is an image file
+            if (isImage) {
+              try {
+                uploadedFile.imageData = JSON.parse(result.content)
+              } catch (e) {
+                console.error('Failed to parse image data:', e)
+              }
+            }
+            
+            processedFiles.push(uploadedFile)
           }
         } catch (error) {
           console.error('Error processing file:', file.name, error)
@@ -105,6 +122,7 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
   return (
     <div className="space-y-4">
       {/* Upload Area */}
+      {showUploadArea && (
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -117,30 +135,38 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
       >
         <Upload size={40} className="mx-auto mb-4 text-gray-400" />
         <p className="text-gray-600 dark:text-gray-400 mb-2">
-          Drag and drop files here, or{' '}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="text-blue-600 hover:text-blue-700 underline"
-          >
-            browse
-          </button>
+          {t('fileUpload.dragDrop')}
         </p>
-        <p className="text-sm text-gray-500">Supports PDF and text files</p>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="text-blue-600 hover:text-blue-700 underline mb-2"
+        >
+          {t('fileUpload.selectFiles')}
+        </button>
+        <p className="text-sm text-gray-500">
+          {t('fileUpload.supportedFormats')}
+          {selectedModelId?.includes('Mistral-Small') && (
+            <span className="block text-blue-600 dark:text-blue-400 font-medium mt-1">
+              ✨ {t('fileUpload.imageAnalysis')}
+            </span>
+          )}
+        </p>
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".pdf,.txt"
+          accept=".pdf,.txt,.jpg,.jpeg,.png,.gif"
           onChange={handleFileSelect}
           className="hidden"
         />
       </div>
+      )}
 
       {/* Processing Status */}
       {processingStatus && (
         <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-sm text-blue-700 dark:text-blue-300">{processingStatus}</span>
+          <span className="text-sm text-blue-700 dark:text-blue-300">{t('fileUpload.processing')}</span>
         </div>
       )}
 
@@ -153,7 +179,7 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
             </svg>
           </div>
           <span className="text-sm text-green-700 dark:text-green-300">
-            ✅ Documents processed and ready for chat! You can now ask questions about your uploaded files.
+            ✅ {t('fileUpload.documentsReady')}
           </span>
         </div>
       )}
@@ -163,7 +189,7 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
         <div className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
           <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-sm text-orange-700 dark:text-orange-300">
-            🔄 Creating embeddings for document search...
+            🔄 {t('fileUpload.creatingEmbeddings')}
           </span>
         </div>
       )}
@@ -172,7 +198,7 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
       {files.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Uploaded Files ({files.length})
+            {t('fileUpload.uploadedFiles', { count: files.length })}
           </h3>
           <div className="space-y-2 max-h-40 overflow-y-auto">
             {files.map((file) => (
@@ -181,20 +207,43 @@ export default function FileUpload({ files, onFilesChange, isProcessing, documen
                 className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <FileText size={20} className="text-gray-500 flex-shrink-0" />
+                  {file.isImage && file.imageData ? (
+                    <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700">
+                      <img 
+                        src={file.imageData.data} 
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback to icon if image fails to load
+                          e.currentTarget.style.display = 'none'
+                          e.currentTarget.nextElementSibling!.style.display = 'flex'
+                        }}
+                      />
+                      <div className="w-full h-full hidden items-center justify-center">
+                        <Image size={20} className="text-blue-500" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center w-10 h-10">
+                      {file.type.startsWith('image/') ? 
+                        <Image size={20} className="text-blue-500 flex-shrink-0" /> :
+                        <FileText size={20} className="text-gray-500 flex-shrink-0" />
+                      }
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                       {file.name}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {formatFileSize(file.size)}
+                      {formatFileSize(file.size)} {file.isImage && `• ${t('fileUpload.image')}`}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => removeFile(file.id)}
                   className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                  title="Remove file"
+                  title={t('fileUpload.remove')}
                 >
                   <X size={16} className="text-gray-500" />
                 </button>
